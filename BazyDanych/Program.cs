@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query.Internal;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Configuration;
 using System.Data.SqlClient;
@@ -13,42 +14,49 @@ namespace BazyDanych
     {
         static void Main(string[] args)
         {
-            //dapper();
-            //adonet();
-            //entityframework();
-            //compiled();
-            //rawsql();
+            dapper();
+            adonet();
+            entityframework();
+            compiled();
+            rawsql();
         }
 
         static void dapper()
         {
+            Console.WriteLine("Dapper: ");
             string connString = ConfigurationManager.ConnectionStrings["DbConn"].ConnectionString;
 
-            Console.WriteLine("Hello World!");
             using (var comm = new SqlConnection(connString))
             {
                 var watch = System.Diagnostics.Stopwatch.StartNew();
 
-                var zamówienia = comm.Query("Select * from Zamówienia").ToList();
+                var zamówienia = comm.Query("Select * from Orders").ToList();
                 watch.Stop();
                 var elapsedMs = watch.ElapsedMilliseconds;
                 Console.WriteLine(elapsedMs);
             }
-
         }
         static void adonet()
         {
+            Console.WriteLine("ADO.NET: ");
+
             string connString = ConfigurationManager.ConnectionStrings["DbConn"].ConnectionString;
             SqlConnection sqlConnection = new SqlConnection(connString);
 
             sqlConnection.Open();
 
-            using (SqlCommand comm = new SqlCommand("SELECT * from Zamówienia", sqlConnection))
+            using (SqlCommand comm = new SqlCommand("SELECT * from Orders", sqlConnection))
             {
                 var watch = System.Diagnostics.Stopwatch.StartNew();
 
+                List<Order> orders = new List<Order>();
                 using (SqlDataReader reader = comm.ExecuteReader())
                 {
+                    while (reader.Read())
+                    {
+                        string oid = reader["OrderID"].ToString();
+                        orders.Add(new Order { OrderID = int.Parse(oid) });
+                    }
                     watch.Stop();
                     var elapsedMs = watch.ElapsedMilliseconds;
                     Console.WriteLine(elapsedMs);
@@ -60,11 +68,13 @@ namespace BazyDanych
 
         static void entityframework()
         {
+            Console.WriteLine("EF: ");
+
             using (var context = new ZamówieniaContext())
             {
                 var watch = System.Diagnostics.Stopwatch.StartNew();
 
-                var zm = context.Zamówienia.Select(z => z);
+                var zm = context.Orders.Select(z => z).ToList();
                 watch.Stop();
                 var elapsedMs = watch.ElapsedMilliseconds;
                 Console.WriteLine(elapsedMs);
@@ -73,12 +83,16 @@ namespace BazyDanych
 
         static void compiled()
         {
-            var query = EF.CompileQuery((ZamówieniaContext context) =>
-                    context.Zamówienia.Select(z => z));
-
+            Console.WriteLine("Compiled: ");
+            
             var watch = System.Diagnostics.Stopwatch.StartNew();
+            var query = EF.CompileQuery((ZamówieniaContext context) =>
+                    context.Orders.Select(z => z));
 
-            Console.WriteLine(query);
+            using (var context = new ZamówieniaContext())
+            {
+                var results = query.Invoke(context).ToList();
+            }
 
             watch.Stop();
             var elapsedMs = watch.ElapsedMilliseconds;
@@ -87,15 +101,15 @@ namespace BazyDanych
 
         static void rawsql()
         {
+            Console.WriteLine("Raw sql: ");
+
             using (var ctx = new ZamówieniaContext())
             {
                 var watch = System.Diagnostics.Stopwatch.StartNew();
-                
-                var zm = ctx.Zamówienia
-                                    .FromSqlInterpolated($"Select * from Zamówienia")
-                                    .ToList();
 
-                Console.WriteLine(zm);
+                var zm = ctx.Orders
+                                    .FromSqlInterpolated($"Select * from Orders")
+                                    .ToList();
 
                 watch.Stop();
                 var elapsedMs = watch.ElapsedMilliseconds;
@@ -104,33 +118,19 @@ namespace BazyDanych
         }
     }
 
-
     public class ZamówieniaContext : DbContext
     {
-        public DbSet<Zamówienia> Zamówienia { get; set; }
+        public DbSet<Order> Orders { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlServer(@"Server==LAPTOP-HJ934Q3G;Database=Northwind;Trusted_Connection=True;");
+            optionsBuilder.UseSqlServer(ConfigurationManager.ConnectionStrings["DbConn"].ConnectionString);
         }
     }
 
-    public class Zamówienia
+    public class Order
     {
         [Key]
-        public int IDZamówienia { get; set; }
-        public string IDKlienta { get; set; }
-        public int IDPracownika { get; set; }
-        public DateTime DataZamówienia { get; set; }
-        public DateTime DataWymagana { get; set; }
-        public DateTime DataWysyłki { get; set; }
-        public int IDSpedytora { get; set; }
-        public double Fracht { get; set; }
-        public string NazwaOdbiorcy { get; set; }   
-        public string AdresOdbiorcy { get; set; }   
-        public string MiastoOdbiorcy { get; set; }   
-        public string RegionOdbiorcy { get; set; }   
-        public string KodPocztowyOdbiorcy { get; set; }
-        public string KrajOdbiorcy { get; set; }
+        public int OrderID { get; set; }
     }
 }
